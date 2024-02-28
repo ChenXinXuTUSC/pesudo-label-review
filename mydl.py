@@ -27,6 +27,6 @@ class MyConvNet(nn.Module):
         out = self.fc1(out)
         out = F.relu(out)
         out = self.fc2(out)
-        out = F.log_softmax(out, dim=1) # perform softmax on sample dim
+        # out = F.softmax(out, dim=1) # perform softmax on sample dim
         
         return out
