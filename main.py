@@ -17,25 +17,18 @@ import mydl
 
 import tensorboardX as tfx
 
-def get_mnist_dataset():
-    download = False
-    if not osp.exists("data"):
-        download = True
-    
-    return torchvision.datasets.MNIST(root="data", download=download)
-
 class Trainer:
-    def __init__(self, dataset: th_dataset.Dataset, config: map) -> None:
+    def __init__(self, model:torch.nn.Module, dataset: th_dataset.Dataset, config: map) -> None:
         # config map should contain:
         #   epoch
         #   batch_size
         #   train/eval/test ratio
         self.config = AttributeMapping(config)
         
-        self.model = None
-        self.rt_device = None
-        self.optimizer = None
-        self.scheduler = None
+        self.rt_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = model.to(self.rt_device)
+        self.optimizer = th_optim.Adam(self.model.parameters(), self.config.lr)
+        self.scheduler = th_optim.lr_scheduler.ExponentialLR(self.optimizer, 0.9)
 
         split_train, split_eval, split_test = torch.utils.data.random_split(
             dataset, [
@@ -64,11 +57,6 @@ class Trainer:
         os.makedirs(self.config.save_dir, exist_ok=True)
     
     def train(self):
-        self.rt_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = mydl.MyConvNet().to(self.rt_device)
-        self.optimizer = th_optim.Adam(self.model.parameters(), self.config.lr)
-        self.scheduler = th_optim.lr_scheduler.ExponentialLR(self.optimizer, 0.9)
-        
         loss_best = float(1 << 31)
         for epoch in range(self.config.epoch):
             self.train_epoch(epoch)
@@ -126,13 +114,11 @@ class Trainer:
         return loss, accu
 
 if __name__ == "__main__":
-    # print(torch.cuda.is_available())
-    # print(torch.cuda.device_count())
     time_stmp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    mnist_raw = get_mnist_dataset()
     
     trainer = Trainer(
-        dataset=myds.MyDataset(mnist_raw.data, mnist_raw.targets),
+        dataset=myds.Inner(name="MNIST", num_cls=10, root="data", download=False),
+        model=mydl.Conv2dMnist(),
         config=dict({
             "ratio_train": 0.2,
             "ratio_eval": 0.1,
