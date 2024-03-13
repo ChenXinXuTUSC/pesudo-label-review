@@ -18,7 +18,13 @@ import mydl
 import tensorboardX as tfx
 
 class Trainer:
-    def __init__(self, model:torch.nn.Module, dataset: th_dataset.Dataset, config: map) -> None:
+    def __init__(
+            self,
+            model:torch.nn.Module,
+            train_dataset: th_dataset.Dataset,
+            test_dataset: th_dataset.Dataset,
+            config: map
+        ) -> None:
         # config map should contain:
         #   epoch
         #   batch_size
@@ -30,11 +36,10 @@ class Trainer:
         self.optimizer = th_optim.Adam(self.model.parameters(), self.config.lr)
         self.scheduler = th_optim.lr_scheduler.ExponentialLR(self.optimizer, 0.9)
 
-        split_train, split_eval, split_test = torch.utils.data.random_split(
-            dataset, [
-                int(len(dataset)*self.config.ratio_train),
-                int(len(dataset)*self.config.ratio_eval),
-                int(len(dataset)*self.config.ratio_test)
+        split_train, split_eval = torch.utils.data.random_split(
+            train_dataset, [
+                int(len(train_dataset)*self.config.ratio_train),
+                int(len(train_dataset)*self.config.ratio_eval),
             ]
         )
         self.dataloader_train = th_dataloader.DataLoader(
@@ -48,7 +53,7 @@ class Trainer:
             shuffle=True
         )
         self.dataloader_test = th_dataloader.DataLoader(
-            split_test,
+            test_dataset,
             batch_size=self.config.batch_size,
             shuffle=True
         )
@@ -59,16 +64,34 @@ class Trainer:
     def train(self):
         loss_best = float(1 << 31)
         for epoch in range(self.config.epoch):
-            self.train_epoch(epoch)
+            tran_loss, tran_accu = self.train_epoch(epoch)
+            eval_loss, eval_accu = self.evaluate_epoch(epoch)
+            test_loss, test_accu = self.test_epoch(epoch)
             self.scheduler.step()
-            
-            loss, _ = self.test_epoch(epoch)
             
             if (epoch+1) % self.config.save_gap:
                 torch.save(self.model.state_dict(), f"{self.config.save_dir}/{epoch}.pth")
-            if loss < loss_best:
-                loss_best = loss
+            if test_loss < loss_best:
+                loss_best = test_loss
                 torch.save(self.model.state_dict(), f"{self.config.save_dir}/best.pth")
+            self.log_writer.add_scalars(
+                "global/loss",
+                {
+                    "train_loss": tran_loss,
+                    "eval_loss":  eval_loss,
+                    "test_loss":  test_loss
+                },
+                epoch+1
+            )
+            self.log_writer.add_scalars(
+                "global/accu",
+                {
+                    "train_accu": tran_accu,
+                    "eval_accu" : eval_accu,
+                    "test_accu" : test_accu
+                },
+                epoch+1
+            )
     
     def train_epoch(self, epoch: int):
         self.model.train()
@@ -83,7 +106,7 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
             
-            loss = loss.item() / self.config.batch_size * 1e3
+            loss = loss.item() / self.config.batch_size * 1e3 # expand to see detial variation
             accu = pred.max(dim=1)[1].eq(gdth.max(dim=1)[1]).int().sum().item() / len(data)
             total_loss += loss
             total_accu += accu
@@ -93,6 +116,24 @@ class Trainer:
                 self.log_writer.add_scalar("train/accu", scalar_value=accu, global_step=epoch*len(self.dataloader_train)+batch)
         loss = total_loss / len(self.dataloader_train)
         accu = total_accu / len(self.dataloader_train)
+        return loss, accu
+    
+    def evaluate_epoch(self, epoch: int):
+        self.model.eval()
+        total_loss = 0.0
+        total_accu = 0.0
+        with torch.no_grad():
+            for data, gdth in self.dataloader_eval:
+                data, gdth = data.unsqueeze(1).to(self.rt_device), gdth.float().to(self.rt_device)
+                pred = self.model(data)
+                total_loss += th_F.cross_entropy(pred, gdth).item()
+                total_accu += pred.max(dim=1)[1].eq(gdth.max(dim=1)[1]).int().sum().item() / len(data)
+        loss = total_loss / len(self.dataloader_eval) * 1e3
+        accu = total_accu / len(self.dataloader_eval)
+        print(f"[eval] loss: {loss:.3f}, accu: {accu:.3f}")
+        self.log_writer.add_scalar(tag="eval/loss", scalar_value=loss, global_step=(epoch+1)*len(self.dataloader_train))
+        self.log_writer.add_scalar(tag="eval/accu", scalar_value=accu, global_step=(epoch+1)*len(self.dataloader_train))
+        
         return loss, accu
     
     def test_epoch(self, epoch: int):
@@ -115,14 +156,15 @@ class Trainer:
 
 if __name__ == "__main__":
     time_stmp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    
+    dataset_name = "FashionMNIST"
+    model_name = ""
     trainer = Trainer(
-        dataset=myds.Inner(name="MNIST", num_cls=10, root="data", download=False),
-        model=mydl.Conv2dMnist(),
+        train_dataset=myds.Inner(name=dataset_name, num_cls=10, root="data", train=True, download=True),
+        test_dataset=myds.Inner(name=dataset_name, num_cls=10, root="data", train=False, download=True),
+        model=mydl.Conv2dFashionMnist(),
         config=dict({
-            "ratio_train": 0.2,
-            "ratio_eval": 0.1,
-            "ratio_test": 0.7,
+            "ratio_train": 0.8,
+            "ratio_eval": 0.2,
             "epoch": 10,
             "batch_size": 10,
             "lr": 1e-4,

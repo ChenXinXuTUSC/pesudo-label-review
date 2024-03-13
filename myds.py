@@ -10,10 +10,10 @@ class Inner(th_dataset.Dataset):
     # FashionMNIST
     # CIFAR10
     # CIFAR100
-    def __init__(self, name: str, num_cls: int=-1, root: str="data", download: bool=False) -> None:
+    def __init__(self, name: str, num_cls: int=-1, root: str="data", train: bool=True, download: bool=False) -> None:
         super().__init__()
         dataset_type = getattr(torchvision.datasets, name)
-        rawd = dataset_type(root=root, download=download)
+        rawd = dataset_type(root=root, train=train, download=download)
         self.data = rawd.data
         self.gdth = rawd.targets
         

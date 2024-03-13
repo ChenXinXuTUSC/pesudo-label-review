@@ -2,6 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# models for four basic image datasets, Mnist and FashionMnist are
+# gray scale image, while Cifar10 and Cifar100 are RGB images.
+# models are all simple enough that you can even implement these
+# using only torch.nn.sequential()
+
 # https://pytorch-tutorial.readthedocs.io/en/latest/tutorial/chapter03_intermediate/3_2_1_cnn_convnet_mnist/
 class Conv2dMnist(nn.Module):
     def __init__(self) -> None:
@@ -14,29 +19,29 @@ class Conv2dMnist(nn.Module):
     
     def forward(self, x: torch.Tensor):
         in_size = x.size(0)
-        out = self.conv1(x) # 24
-        out = F.relu(out)
+        x = self.conv1(x) # 24
+        x = F.relu(x)
         
-        out = F.max_pool2d(out, 2, 2) # 12
+        x = F.max_pool2d(x, 2, 2) # 12
         
-        out = self.conv2(out)
-        out = F.relu(out)
+        x = self.conv2(x)
+        x = F.relu(x)
         
-        out = out.view(in_size, -1)
+        x = x.view(in_size, -1)
         
-        out = self.fc1(out)
-        out = F.relu(out)
-        out = self.fc2(out)
-        # out = F.softmax(out, dim=1) # perform softmax on sample dim
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.fc2(x)
+        # x = F.softmax(x, dim=1) # perform softmax on sample dim
         
-        return out
+        return x
     
 # https://zhuanlan.zhihu.com/p/391444296
 class Conv2dFashionMnist(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.layer1 = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=16, kernel_size=(5, 5), padding=2),
+            nn.Conv2d(1, 16, (5, 5), 2),
             nn.BatchNorm2d(16),
             nn.ReLU()
         ) # 28 * 28 -> max_pool2d(2, 2) -> 14 * 14
@@ -53,12 +58,54 @@ class Conv2dFashionMnist(nn.Module):
         self.fc = nn.Linear(5 * 5 * 64, 10)
 
     def forward(self, x: torch.Tensor):
-        out = x
-        out = self.layer1(out)
-        out = F.max_pool2d(out, 2, 2) # 14 * 14
-        out = self.layer2(out) # 12 * 12
-        out = self.layer3(out) # 10 * 10
-        out = F.max_pool2d(out, 2, 2) # 5 * 5
-        out = out.view(out.size(0), -1) # [b, f]
-        out = self.fc(out) # [b, 10]
-        return out # logits
+        x = self.layer1(x)
+        x = F.max_pool2d(x, 2, 2) # 14 * 14
+        x = self.layer2(x) # 12 * 12
+        x = self.layer3(x) # 10 * 10
+        x = F.max_pool2d(x, 2, 2) # 5 * 5
+        x = x.view(x.size(0), -1) # [b, f]
+        x = self.fc(x) # [b, 10]
+        return x # logits
+
+# https://blog.csdn.net/shi2xian2wei2/article/details/84308644
+class Conv2dCifar10(nn.Module):
+    '''
+    RGB image is more difficult than gray scale, so use fully-
+    connected layer as little as possible as they are not that
+    efficient when passing features extracted from layers.
+    https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
+    '''
+    def __init__(self) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 64, 3, padding = 1)
+        self.conv2 = nn.Conv2d(64, 64, 3, padding = 1)
+        self.conv3 = nn.Conv2d(64, 128, 3, padding = 1)
+        self.conv4 = nn.Conv2d(128, 128, 3, padding = 1)
+        self.conv5 = nn.Conv2d(128, 256, 3, padding = 1)
+        self.conv6 = nn.Conv2d(256, 256, 3, padding = 1)
+        self.maxpool = nn.MaxPool2d(2, 2)
+        self.avgpool = nn.AvgPool2d(2, 2)
+        self.globalavgpool = nn.AvgPool2d(8, 8)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(128)
+        self.bn3 = nn.BatchNorm2d(256)
+        self.dropout50 = nn.Dropout(0.5)
+        self.dropout10 = nn.Dropout(0.1)
+        self.fc = nn.Linear(256, 10)
+        
+    def forward(self, x: torch.Tensor):
+        x = self.bn1(F.relu(self.conv1(x)))
+        x = self.bn1(F.relu(self.conv2(x)))
+        x = self.maxpool(x)
+        x = self.dropout10(x)
+        x = self.bn2(F.relu(self.conv3(x)))
+        x = self.bn2(F.relu(self.conv4(x)))
+        x = self.avgpool(x)
+        x = self.dropout10(x)
+        x = self.bn3(F.relu(self.conv5(x)))
+        x = self.bn3(F.relu(self.conv6(x)))
+        x = self.globalavgpool(x)
+        x = self.dropout50(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
