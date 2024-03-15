@@ -8,7 +8,7 @@ import torch.nn.functional as F
 # using only torch.nn.sequential()
 
 # https://pytorch-tutorial.readthedocs.io/en/latest/tutorial/chapter03_intermediate/3_2_1_cnn_convnet_mnist/
-class Conv2dMnist(nn.Module):
+class Conv2dMNIST(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         # 28x28
@@ -37,7 +37,7 @@ class Conv2dMnist(nn.Module):
         return x
     
 # https://zhuanlan.zhihu.com/p/391444296
-class Conv2dFashionMnist(nn.Module):
+class Conv2dFashionMNIST(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.layer1 = nn.Sequential(
@@ -55,7 +55,7 @@ class Conv2dFashionMnist(nn.Module):
             nn.BatchNorm2d(64),
             nn.ReLU()
         )
-        self.fc = nn.Linear(5 * 5 * 64, 10)
+        self.fc = nn.Linear(64, 10)
 
     def forward(self, x: torch.Tensor):
         x = self.layer1(x)
@@ -68,7 +68,7 @@ class Conv2dFashionMnist(nn.Module):
         return x # logits
 
 # https://blog.csdn.net/shi2xian2wei2/article/details/84308644
-class Conv2dCifar10(nn.Module):
+class Conv2dCIFAR10(nn.Module):
     '''
     RGB image is more difficult than gray scale, so use fully-
     connected layer as little as possible as they are not that
@@ -94,18 +94,35 @@ class Conv2dCifar10(nn.Module):
         self.fc = nn.Linear(256, 10)
         
     def forward(self, x: torch.Tensor):
-        x = self.bn1(F.relu(self.conv1(x)))
-        x = self.bn1(F.relu(self.conv2(x)))
+        x = self.bn1(F.leaky_relu(self.conv1(x)))
+        x = self.bn1(F.leaky_relu(self.conv2(x)))
         x = self.maxpool(x)
         x = self.dropout10(x)
-        x = self.bn2(F.relu(self.conv3(x)))
-        x = self.bn2(F.relu(self.conv4(x)))
+        x = self.bn2(F.leaky_relu(self.conv3(x)))
+        x = self.bn2(F.leaky_relu(self.conv4(x)))
         x = self.avgpool(x)
         x = self.dropout10(x)
-        x = self.bn3(F.relu(self.conv5(x)))
-        x = self.bn3(F.relu(self.conv6(x)))
+        x = self.bn3(F.leaky_relu(self.conv5(x)))
+        x = self.bn3(F.leaky_relu(self.conv6(x)))
         x = self.globalavgpool(x)
         x = self.dropout50(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         return x
+
+
+def name2class():
+    import inspect
+    import importlib
+
+    current_file_path = inspect.getfile(inspect.currentframe())
+    module_name = inspect.getmodulename(current_file_path)
+    module = importlib.import_module(module_name)
+
+    model_map = {}
+    for name, obj in inspect.getmembers(module):
+        if inspect.isclass(obj):
+            model_map[name] = obj
+
+    return model_map
+MODEL = name2class()

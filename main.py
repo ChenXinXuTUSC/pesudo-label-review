@@ -98,7 +98,7 @@ class Trainer:
         total_loss = 0.0
         total_accu = 0.0
         for batch, (data, gdth) in tqdm(enumerate(self.dataloader_train), desc=f"epoch {epoch}", ncols=100, total=len(self.dataloader_train)):
-            data, gdth = data.unsqueeze(1).to(self.rt_device), gdth.float().to(self.rt_device)
+            data, gdth = data.to(self.rt_device), gdth.to(self.rt_device)
             
             self.optimizer.zero_grad()
             pred = self.model(data)
@@ -156,12 +156,13 @@ class Trainer:
 
 if __name__ == "__main__":
     time_stmp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    dataset_name = "FashionMNIST"
-    model_name = ""
+    dataset_name = "CIFAR10"
+    model_name = "Conv2dCIFAR10"
+
     trainer = Trainer(
         train_dataset=myds.Inner(name=dataset_name, num_cls=10, root="data", train=True, download=True),
         test_dataset=myds.Inner(name=dataset_name, num_cls=10, root="data", train=False, download=True),
-        model=mydl.Conv2dFashionMnist(),
+        model=mydl.MODEL[model_name](),
         config=dict({
             "ratio_train": 0.8,
             "ratio_eval": 0.2,
