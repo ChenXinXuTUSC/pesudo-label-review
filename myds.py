@@ -35,6 +35,7 @@ class Inner(th_dataset.Dataset):
             self.data = torch.tensor(self.data) # do not do this if the original type is torch.Tensor already
         if type(self.gdth) is not torch.Tensor:
             self.gdth = torch.tensor(self.gdth)
+        
         if len(self.gdth.shape) == 1:
             # convert to one hot
             self.gdth = th_F.one_hot(self.gdth, num_cls)

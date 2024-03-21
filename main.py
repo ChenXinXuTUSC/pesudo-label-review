@@ -29,6 +29,10 @@ class Trainer:
         #   epoch
         #   batch_size
         #   train/eval/test ratio
+        print("[========== model info ==========]")
+        print(model)
+        print("[========== dataset ==========]")
+        print(train_dataset.__class__.__name__)
         self.config = AttributeMapping(config)
         
         self.rt_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -124,7 +128,7 @@ class Trainer:
         total_accu = 0.0
         with torch.no_grad():
             for data, gdth in self.dataloader_eval:
-                data, gdth = data.unsqueeze(1).to(self.rt_device), gdth.float().to(self.rt_device)
+                data, gdth = data.to(self.rt_device), gdth.to(self.rt_device)
                 pred = self.model(data)
                 total_loss += th_F.cross_entropy(pred, gdth).item()
                 total_accu += pred.max(dim=1)[1].eq(gdth.max(dim=1)[1]).int().sum().item() / len(data)
@@ -142,7 +146,7 @@ class Trainer:
         total_accu = 0.0
         with torch.no_grad():
             for data, gdth in self.dataloader_test:
-                data, gdth = data.unsqueeze(1).to(self.rt_device), gdth.float().to(self.rt_device)
+                data, gdth = data.to(self.rt_device), gdth.to(self.rt_device)
                 pred = self.model(data)
                 total_loss += th_F.cross_entropy(pred, gdth).item()
                 total_accu += pred.max(dim=1)[1].eq(gdth.max(dim=1)[1]).int().sum().item() / len(data)
@@ -164,8 +168,8 @@ if __name__ == "__main__":
         test_dataset=myds.Inner(name=dataset_name, num_cls=10, root="data", train=False, download=True),
         model=mydl.MODEL[model_name](),
         config=dict({
-            "ratio_train": 0.8,
-            "ratio_eval": 0.2,
+            "ratio_train": 0.4,
+            "ratio_eval": 0.6,
             "epoch": 10,
             "batch_size": 10,
             "lr": 1e-4,
@@ -176,4 +180,3 @@ if __name__ == "__main__":
         })
     )
     trainer.train()
-    
